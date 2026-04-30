@@ -18,11 +18,15 @@ Showcases the `claude-api` skill in action:
 
 ```bash
 pip install -r requirements.txt
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=sk-ant-...   # Windows: setx ANTHROPIC_API_KEY "sk-ant-..."
 
 python explain.py path/to/file.py
 python explain.py src/server.ts "focus on concurrency safety"
 ```
+
+You can also just double-click `explain.py` on Windows — it will prompt for a
+file path interactively and pause the window when it's done so you can read
+the output.
 
 The trailing stderr line reports token usage including `cache_read` — re-run
 within 5 minutes against any file and you'll see the cache_read input tokens

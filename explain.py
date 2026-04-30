@@ -5,12 +5,34 @@ Usage:
     export ANTHROPIC_API_KEY=...
     python explain.py path/to/file.py
     python explain.py path/to/file.py "focus on the error handling"
+
+You can also just double-click this file — it will prompt for a path.
 """
 
+import os
 import sys
 from pathlib import Path
 
-import anthropic
+try:
+    import anthropic
+except ImportError:
+    print("error: the 'anthropic' package is not installed.", file=sys.stderr)
+    print("       run: pip install -U anthropic", file=sys.stderr)
+    input("\nPress Enter to exit...")
+    sys.exit(1)
+
+
+def _is_double_click() -> bool:
+    """Best-effort detection of Windows double-click launch (no args, no TTY parent)."""
+    return os.name == "nt" and len(sys.argv) < 2
+
+
+def _pause_if_double_click() -> None:
+    if _is_double_click():
+        try:
+            input("\nPress Enter to close...")
+        except EOFError:
+            pass
 
 SYSTEM_PROMPT = """You are an expert code reviewer with deep experience across
 languages, frameworks, and architectures. When given a source file, produce:
@@ -25,15 +47,31 @@ Be concrete. Reference identifiers by name. Skip restating obvious code.
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print(__doc__, file=sys.stderr)
-        return 2
-
-    path = Path(sys.argv[1])
-    focus = sys.argv[2] if len(sys.argv) > 2 else None
+    if len(sys.argv) >= 2:
+        path = Path(sys.argv[1])
+        focus = sys.argv[2] if len(sys.argv) > 2 else None
+    else:
+        # Interactive fallback (e.g. Windows double-click)
+        print("Stream a plain-English explanation of a source file.\n")
+        raw = input("File path: ").strip().strip('"').strip("'")
+        if not raw:
+            print("no path given", file=sys.stderr)
+            return 2
+        path = Path(raw)
+        focus = input("Extra focus (optional, press Enter to skip): ").strip() or None
 
     if not path.is_file():
         print(f"error: {path} is not a file", file=sys.stderr)
+        return 1
+
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print("error: ANTHROPIC_API_KEY is not set.", file=sys.stderr)
+        print(
+            "       set it first, e.g. (Windows):\n"
+            '         setx ANTHROPIC_API_KEY "sk-ant-..."\n'
+            "       then open a NEW terminal and re-run.",
+            file=sys.stderr,
+        )
         return 1
 
     source = path.read_text(errors="replace")
@@ -84,4 +122,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        code = main()
+    except KeyboardInterrupt:
+        print("\ninterrupted", file=sys.stderr)
+        code = 130
+    except Exception as e:
+        print(f"\nunexpected error: {type(e).__name__}: {e}", file=sys.stderr)
+        code = 1
+    _pause_if_double_click()
+    sys.exit(code)
